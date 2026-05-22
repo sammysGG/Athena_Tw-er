@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+
+@theme {
+    --color-primary: #5D87FF;
+    --color-gray: #00000014;
+    --color-shineYellow: #ffb900;
+    --color-navyGray : #2A3547;
+    --color-surfaceDark: #1e232e;
+    --color-baseInk: #171c2a;
+
+    --breakpoint-xsm: 425px;
+    --breakpoint-xxl: 1440px;
+
+    --shadow-card: rgb(145 158 171 / 30%) 0px 0px 2px 0px, rgb(145 158 171 / 12%) 0px 12px 24px -4px;
+}
+
+@layer utilities {
+  .container {
+    @apply w-full max-w-[75rem] mx-auto mt-0 mb-0 py-0 sm:px-7 px-5;
+  }
+  .input-class {
+    @apply w-full rounded-md border border-gray-200 dark:border-white/20 py-3 px-5 outline-none transition focus:border-primary/60 dark:focus:border-primary/60 ;
+  }
+  .blog-content h4{
+    @apply text-navyGray dark:text-white/80 font-semibold mb-3;
+  }
+  .blog-content h5{
+    @apply text-navyGray dark:text-white/80 font-semibold mb-3;
+  }
+  .blog-content h6{
+    @apply text-navyGray dark:text-white/80 font-semibold mb-3;
+  }
+  .blog-content p{
+    @apply text-navyGray dark:text-white/80 font-medium mb-6 ;
+  }
+}
+
+@layer base {
+  h1 {
+    @apply text-2xl sm:text-3xl md:text-4xl;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl;
+  }
+
+  h3 {
+    @apply text-xl sm:text-2xl md:text-3xl;
+  }
+
+  h4 {
+    @apply text-xl sm:text-[22px] md:text-2xl;
+  }
+
+  h5 {
+    @apply text-lg sm:text-xl;
+  }
+
+  h6 {
+    @apply text-base sm:text-lg;
+  }
+
+  p {
+    @apply text-sm md:text-base font-normal;
+  }
+}
