@@ -169,10 +169,17 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
         src={(session.user as { image?: string | null }).image ?? null}
       />
       <div className="flex-1 flex flex-col gap-3 min-w-0">
-        <div className="flex gap-1 text-xs">
+        <div className="flex items-center gap-1 text-xs">
           <KindButton current={kind} value="post" onPick={setKind} label="Post" />
           <KindButton current={kind} value="poll" onPick={setKind} label="Poll" icon={<PollIcon size={14} />} />
           <KindButton current={kind} value="question" onPick={setKind} label="Question" icon={<QuestionIcon size={14} />} />
+          <span
+            className={`ml-auto text-sm tabular-nums ${
+              over ? "text-red-500" : "text-navyGray/60 dark:text-white/40"
+            }`}
+          >
+            {remaining}
+          </span>
         </div>
 
         <div className="relative">
@@ -319,13 +326,6 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
                 }}
               />
             </Tooltip>
-            <span
-              className={`text-sm ${
-                over ? "text-red-500" : "text-navyGray/60 dark:text-white/40"
-              }`}
-            >
-              {remaining}
-            </span>
           </div>
           <button
             type="submit"

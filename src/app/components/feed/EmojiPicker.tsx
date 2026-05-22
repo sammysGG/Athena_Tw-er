@@ -58,24 +58,24 @@ export default function EmojiPicker({ onPick }: Props) {
         😀
       </button>
       {open && (
-        <div className="absolute bottom-full mb-2 left-0 z-50 w-72 bg-white dark:bg-surfaceDark border border-gray-200 dark:border-white/15 rounded-xl shadow-xl p-2">
-          <div className="flex gap-1 mb-2 overflow-x-auto">
+        <div className="absolute bottom-full mb-2 left-0 z-50 w-72 bg-white dark:bg-surfaceDark border border-gray-200 dark:border-white/10 rounded-xl shadow-lg p-2">
+          <div className="flex gap-1 mb-2 overflow-x-auto border-b border-gray-100 dark:border-white/10 pb-2">
             {Object.keys(EMOJIS).map((k) => (
               <button
                 key={k}
                 type="button"
                 onClick={() => setTab(k as keyof typeof EMOJIS)}
-                className={`text-xs px-2 py-1 rounded-md whitespace-nowrap cursor-pointer ${
+                className={`text-xs px-2 py-1 rounded-md whitespace-nowrap cursor-pointer transition-colors ${
                   tab === k
-                    ? "bg-primary text-white"
-                    : "bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15"
+                    ? "bg-black/[0.06] dark:bg-white/10 text-navyGray dark:text-white font-semibold"
+                    : "text-navyGray/60 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/5"
                 }`}
               >
                 {k}
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-8 gap-1 max-h-44 overflow-y-auto">
+          <div className="grid grid-cols-8 gap-0.5 max-h-44 overflow-y-auto">
             {EMOJIS[tab].map((e, i) => (
               <button
                 key={`${e}-${i}`}
@@ -84,7 +84,7 @@ export default function EmojiPicker({ onPick }: Props) {
                   onPick(e);
                   // keep picker open so people can stack emojis
                 }}
-                className="text-xl hover:bg-black/5 dark:hover:bg-white/10 rounded-md cursor-pointer p-1"
+                className="text-xl hover:bg-black/[0.04] dark:hover:bg-white/5 rounded-md cursor-pointer p-1"
                 aria-label={`Insert ${e}`}
               >
                 {e}
