@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Avatar from "@/app/components/feed/Avatar";
 import PostCard, { type FeedPost } from "@/app/components/feed/PostCard";
+import { FeedSkeleton, ChatListSkeleton } from "@/app/components/ui/Skeleton";
 
 type UserHit = {
   id: string;
@@ -48,7 +49,18 @@ export default function SearchResults() {
         Results for <span className="font-semibold">“{q}”</span>
       </p>
 
-      {loading && <p className="text-navyGray/60 dark:text-white/40">Searching…</p>}
+      {loading && (
+        <div className="flex flex-col gap-6">
+          <section>
+            <h2 className="font-semibold mb-3">People</h2>
+            <ChatListSkeleton count={2} />
+          </section>
+          <section>
+            <h2 className="font-semibold mb-3">Posts</h2>
+            <FeedSkeleton count={2} />
+          </section>
+        </div>
+      )}
 
       {data && (
         <>

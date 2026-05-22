@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Avatar from "@/app/components/feed/Avatar";
+import { ChatListSkeleton } from "@/app/components/ui/Skeleton";
 import { timeAgo } from "@/app/lib/format";
 
 type ChatSummary = {
@@ -41,7 +42,7 @@ export default function ChatList() {
         Visit any profile and tap <span className="font-semibold">Message</span> to start a new conversation.
       </p>
       {chats === null ? (
-        <p className="text-navyGray/60 dark:text-white/40">Loading…</p>
+        <ChatListSkeleton />
       ) : chats.length === 0 ? (
         <p className="text-navyGray/60 dark:text-white/40">No conversations yet.</p>
       ) : (

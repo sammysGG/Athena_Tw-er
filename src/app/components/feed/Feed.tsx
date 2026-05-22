@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Composer from "./Composer";
 import PostCard, { type FeedPost } from "./PostCard";
+import { FeedSkeleton } from "@/app/components/ui/Skeleton";
 
 export default function Feed() {
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
@@ -32,7 +33,7 @@ export default function Feed() {
         </p>
       )}
       {posts === null ? (
-        <p className="text-navyGray/60 dark:text-white/40 text-sm">Loading feed…</p>
+        <FeedSkeleton />
       ) : posts.length === 0 ? (
         <p className="text-navyGray/60 dark:text-white/40 text-sm">
           No posts yet. Be the first to post something!

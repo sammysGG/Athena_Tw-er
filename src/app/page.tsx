@@ -1,4 +1,5 @@
 import Feed from "@/app/components/feed/Feed";
+import KonamiEgg from "@/app/components/feed/KonamiEgg";
 import AppShell from "@/app/components/layout/AppShell";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,10 @@ export default function Home() {
           The latest posts on Tw@er.
         </p>
       </div>
-      <Feed />
+      <div className="flex flex-col gap-4">
+        <KonamiEgg />
+        <Feed />
+      </div>
     </AppShell>
   );
 }

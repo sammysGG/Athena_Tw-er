@@ -150,6 +150,7 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
 
   const remaining = MAX - content.length;
   const over = remaining < 0;
+  const opsecLeak = /\bopsec\b/i.test(content);
   const canSubmit = !submitting && !over;
 
   const placeholder =
@@ -182,7 +183,11 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
           </span>
         </div>
 
-        <div className="relative">
+        <div
+          className={`relative rounded-md transition-shadow ${
+            opsecLeak ? "ring-2 ring-red-500/50 animate-pulse" : ""
+          }`}
+        >
           <textarea
             ref={textRef}
             value={content}
@@ -213,6 +218,12 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
             setValue={setContent}
           />
         </div>
+
+        {opsecLeak && (
+          <p className="text-xs text-red-500 font-medium flex items-center gap-1">
+            ⚠️ Are you sure? OPSEC goes to die here.
+          </p>
+        )}
 
         {kind === "poll" && (
           <div className="border border-gray-200 dark:border-white/15 rounded-lg p-3 flex flex-col gap-2">

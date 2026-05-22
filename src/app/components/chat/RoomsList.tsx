@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { ChatListSkeleton } from "@/app/components/ui/Skeleton";
 
 type Room = {
   id: string;
@@ -118,7 +119,7 @@ export default function RoomsList() {
       )}
 
       {rooms === null ? (
-        <p className="text-navyGray/60 dark:text-white/40">Loading…</p>
+        <ChatListSkeleton />
       ) : rooms.length === 0 ? (
         <p className="text-navyGray/60 dark:text-white/40">
           No rooms yet. {session?.user ? "Be the first to create one." : "Sign in to create one."}
