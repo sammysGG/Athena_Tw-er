@@ -14,6 +14,11 @@ model User {
   displayName  String
   passwordHash String
   bio          String?
+  gender       String?
+  location     String?
+  website      String?
+  avatarUrl    String?
+  role         String    @default("user")
   createdAt    DateTime  @default(now())
 
   posts        Post[]
@@ -25,6 +30,9 @@ model Post {
   id        String    @id @default(cuid())
   content   String
   authorId  String
+  mediaUrl  String?
+  mediaType String?
+  pinnedAt  DateTime?
   createdAt DateTime  @default(now())
 
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -33,6 +41,7 @@ model Post {
 
   @@index([createdAt])
   @@index([authorId])
+  @@index([pinnedAt])
 }
 
 model Like {

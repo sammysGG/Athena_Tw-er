@@ -4,18 +4,24 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import Avatar from "./Avatar";
+import MediaPreview from "./MediaPreview";
 import { timeAgo } from "@/app/lib/format";
 
 export type PostAuthor = {
   id: string;
   username: string;
   displayName: string;
+  avatarUrl?: string | null;
+  role?: string;
 };
 
 export type FeedPost = {
   id: string;
   content: string;
   createdAt: string;
+  mediaUrl?: string | null;
+  mediaType?: string | null;
+  pinnedAt?: string | null;
   author: PostAuthor;
   _count: { likes: number; comments: number };
 };
@@ -24,12 +30,20 @@ type Comment = {
   id: string;
   content: string;
   createdAt: string;
-  user: { id: string; username: string; displayName: string };
+  user: { id: string; username: string; displayName: string; avatarUrl?: string | null; role?: string };
 };
 
-export default function PostCard({ post }: { post: FeedPost }) {
+export default function PostCard({
+  post,
+  onChanged,
+}: {
+  post: FeedPost;
+  onChanged?: () => void;
+}) {
   const { data: session } = useSession();
   const authed = Boolean(session?.user);
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "admin";
+  const isAuthor = session?.user?.id === post.author.id;
 
   const [likeCount, setLikeCount] = useState(post._count.likes);
   const [liked, setLiked] = useState(false);
@@ -41,17 +55,18 @@ export default function PostCard({ post }: { post: FeedPost }) {
   const [commentText, setCommentText] = useState("");
   const [commentBusy, setCommentBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(false);
+  const [pinned, setPinned] = useState(Boolean(post.pinnedAt));
+
+  if (hidden) return null;
 
   const toggleLike = async () => {
-    if (!authed) {
-      window.location.href = "/sign-in";
-      return;
-    }
+    if (!authed) return (window.location.href = "/sign-in");
     if (likeBusy) return;
     setLikeBusy(true);
     try {
       const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error();
       const data = (await res.json()) as { liked: boolean; count: number };
       setLiked(data.liked);
       setLikeCount(data.count);
@@ -78,10 +93,7 @@ export default function PostCard({ post }: { post: FeedPost }) {
 
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authed) {
-      window.location.href = "/sign-in";
-      return;
-    }
+    if (!authed) return (window.location.href = "/sign-in");
     const text = commentText.trim();
     if (!text || commentBusy) return;
     setCommentBusy(true);
@@ -107,13 +119,61 @@ export default function PostCard({ post }: { post: FeedPost }) {
     }
   };
 
+  const deletePost = async () => {
+    if (!confirm("Delete this post?")) return;
+    const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setHidden(true);
+      onChanged?.();
+    } else {
+      setError("Could not delete");
+    }
+  };
+
+  const togglePin = async () => {
+    const res = await fetch(`/api/posts/${post.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pinned: !pinned }),
+    });
+    if (res.ok) {
+      setPinned(!pinned);
+      onChanged?.();
+    } else {
+      setError("Could not pin");
+    }
+  };
+
+  const deleteComment = async (cid: string) => {
+    if (!confirm("Delete comment?")) return;
+    const res = await fetch(`/api/comments/${cid}`, { method: "DELETE" });
+    if (res.ok) {
+      setComments((prev) => prev?.filter((c) => c.id !== cid) ?? null);
+      setCommentCount((c) => Math.max(0, c - 1));
+    }
+  };
+
   return (
     <article className="border border-gray-200 dark:border-white/10 rounded-xl p-4">
+      {pinned && (
+        <p className="text-xs text-primary font-semibold mb-2 flex items-center gap-1">
+          📌 Pinned
+        </p>
+      )}
       <header className="flex items-start gap-3">
-        <Avatar name={post.author.displayName} />
+        <Link href={`/u/${post.author.username}`}>
+          <Avatar name={post.author.displayName} src={post.author.avatarUrl} />
+        </Link>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-2">
-            <span className="font-semibold truncate">{post.author.displayName}</span>
+            <Link href={`/u/${post.author.username}`} className="font-semibold hover:underline truncate">
+              {post.author.displayName}
+            </Link>
+            {post.author.role === "admin" && (
+              <span className="text-[10px] uppercase tracking-wider bg-primary text-white px-1.5 py-0.5 rounded">
+                admin
+              </span>
+            )}
             <Link
               href={`/u/${post.author.username}`}
               className="text-sm text-navyGray/70 dark:text-white/50 hover:underline"
@@ -123,8 +183,34 @@ export default function PostCard({ post }: { post: FeedPost }) {
             <span className="text-sm text-navyGray/60 dark:text-white/40">
               · {timeAgo(post.createdAt)}
             </span>
+            <div className="ml-auto flex items-center gap-2 text-sm">
+              {isAdmin && (
+                <button
+                  onClick={togglePin}
+                  className="text-navyGray/60 dark:text-white/50 hover:text-primary cursor-pointer"
+                  title={pinned ? "Unpin" : "Pin"}
+                >
+                  {pinned ? "Unpin" : "Pin"}
+                </button>
+              )}
+              {(isAdmin || isAuthor) && (
+                <button
+                  onClick={deletePost}
+                  className="text-navyGray/60 dark:text-white/50 hover:text-red-500 cursor-pointer"
+                  title="Delete"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
           </div>
-          <p className="mt-2 whitespace-pre-wrap break-words">{post.content}</p>
+
+          {post.content && (
+            <p className="mt-2 whitespace-pre-wrap break-words">{post.content}</p>
+          )}
+          {post.mediaUrl && post.mediaType && (
+            <MediaPreview url={post.mediaUrl} type={post.mediaType} />
+          )}
 
           <div className="mt-3 flex items-center gap-6 text-sm text-navyGray/70 dark:text-white/60">
             <button
@@ -156,14 +242,29 @@ export default function PostCard({ post }: { post: FeedPost }) {
                 <p className="text-sm text-navyGray/60 dark:text-white/40">No comments yet.</p>
               ) : (
                 comments.map((c) => (
-                  <div key={c.id} className="flex gap-3">
-                    <Avatar name={c.user.displayName} size={32} />
-                    <div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="font-semibold text-sm">{c.user.displayName}</span>
+                  <div key={c.id} className="flex gap-3 group">
+                    <Avatar name={c.user.displayName} size={32} src={c.user.avatarUrl} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <Link href={`/u/${c.user.username}`} className="font-semibold text-sm hover:underline">
+                          {c.user.displayName}
+                        </Link>
+                        {c.user.role === "admin" && (
+                          <span className="text-[9px] uppercase tracking-wider bg-primary text-white px-1 py-0.5 rounded">
+                            admin
+                          </span>
+                        )}
                         <span className="text-xs text-navyGray/60 dark:text-white/40">
                           @{c.user.username} · {timeAgo(c.createdAt)}
                         </span>
+                        {(isAdmin || c.user.id === session?.user?.id) && (
+                          <button
+                            onClick={() => deleteComment(c.id)}
+                            className="ml-auto text-xs text-navyGray/40 dark:text-white/30 hover:text-red-500 opacity-0 group-hover:opacity-100 cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                       <p className="text-sm whitespace-pre-wrap break-words">{c.content}</p>
                     </div>

@@ -38,7 +38,7 @@ export default function Feed() {
           No posts yet. Be the first to post something!
         </p>
       ) : (
-        posts.map((p) => <PostCard key={p.id} post={p} />)
+        posts.map((p) => <PostCard key={p.id} post={p} onChanged={load} />)
       )}
     </div>
   );

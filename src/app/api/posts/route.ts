@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { requireUser, errorResponse } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { parseMediaUrl } from "@/lib/media";
 
 const MAX_POST_LEN = 280;
 
 export async function GET() {
   const posts = await prisma.post.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ pinnedAt: "desc" }, { createdAt: "desc" }],
     take: 50,
     include: {
-      author: { select: { id: true, username: true, displayName: true } },
+      author: {
+        select: { id: true, username: true, displayName: true, avatarUrl: true, role: true },
+      },
       _count: { select: { likes: true, comments: true } },
     },
   });
@@ -18,36 +20,67 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let body: unknown;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+    const user = await requireUser();
 
-  const content = (body as { content?: string })?.content?.trim();
-  if (!content) {
-    return NextResponse.json({ error: "Content required" }, { status: 400 });
-  }
-  if (content.length > MAX_POST_LEN) {
-    return NextResponse.json(
-      { error: `Posts are limited to ${MAX_POST_LEN} characters` },
-      { status: 400 }
-    );
-  }
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
-  const post = await prisma.post.create({
-    data: { content, authorId: session.user.id },
-    include: {
-      author: { select: { id: true, username: true, displayName: true } },
-      _count: { select: { likes: true, comments: true } },
-    },
-  });
+    const { content, mediaUrl } = (body ?? {}) as {
+      content?: string;
+      mediaUrl?: string | null;
+    };
+    const text = content?.trim() ?? "";
+    if (!text && !mediaUrl) {
+      return NextResponse.json(
+        { error: "Posts must include text or media" },
+        { status: 400 }
+      );
+    }
+    if (text.length > MAX_POST_LEN) {
+      return NextResponse.json(
+        { error: `Posts are limited to ${MAX_POST_LEN} characters` },
+        { status: 400 }
+      );
+    }
 
-  return NextResponse.json({ post }, { status: 201 });
+    let storedMediaUrl: string | null = null;
+    let storedMediaType: string | null = null;
+    if (mediaUrl) {
+      if (mediaUrl.startsWith("/uploads/")) {
+        storedMediaUrl = mediaUrl;
+        storedMediaType = /\.(mp4|webm|mov|m4v)$/i.test(mediaUrl) ? "video" : "image";
+      } else {
+        const parsed = parseMediaUrl(mediaUrl);
+        if (!parsed) {
+          return NextResponse.json({ error: "Invalid media URL" }, { status: 400 });
+        }
+        storedMediaUrl = parsed.url;
+        storedMediaType = parsed.type;
+      }
+    }
+
+    const post = await prisma.post.create({
+      data: {
+        content: text,
+        authorId: user.id,
+        mediaUrl: storedMediaUrl,
+        mediaType: storedMediaType,
+      },
+      include: {
+        author: {
+          select: { id: true, username: true, displayName: true, avatarUrl: true, role: true },
+        },
+        _count: { select: { likes: true, comments: true } },
+      },
+    });
+
+    return NextResponse.json({ post }, { status: 201 });
+  } catch (err) {
+    return errorResponse(err);
+  }
 }

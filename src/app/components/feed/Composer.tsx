@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import Avatar from "./Avatar";
@@ -10,8 +10,12 @@ const MAX = 280;
 export default function Composer({ onPosted }: { onPosted: () => void }) {
   const { data: session, status } = useSession();
   const [content, setContent] = useState("");
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   if (status === "loading") {
     return (
@@ -43,23 +47,50 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
     );
   }
 
+  const upload = async (file: File) => {
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("kind", "post");
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Upload failed");
+      }
+      const data = (await res.json()) as { url: string };
+      setUploadedUrl(data.url);
+      setMediaUrl("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = content.trim();
-    if (!text || submitting) return;
+    const media = uploadedUrl ?? (mediaUrl.trim() || null);
+    if (!text && !media) return;
+    if (submitting) return;
     setSubmitting(true);
     setError(null);
     try {
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: text, mediaUrl: media }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to post");
       }
       setContent("");
+      setMediaUrl("");
+      setUploadedUrl(null);
+      if (fileRef.current) fileRef.current.value = "";
       onPosted();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to post");
@@ -70,14 +101,19 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
 
   const remaining = MAX - content.length;
   const over = remaining < 0;
+  const canSubmit =
+    !submitting && !over && (content.trim().length > 0 || uploadedUrl || mediaUrl.trim());
 
   return (
     <form
       onSubmit={submit}
       className="border border-gray-200 dark:border-white/10 rounded-xl p-4 flex gap-3"
     >
-      <Avatar name={session.user.name || session.user.email || "?"} />
-      <div className="flex-1 flex flex-col gap-2">
+      <Avatar
+        name={session.user.name || session.user.email || "?"}
+        src={(session.user as { image?: string | null }).image ?? null}
+      />
+      <div className="flex-1 flex flex-col gap-3 min-w-0">
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -86,18 +122,66 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
           className="w-full resize-none bg-transparent outline-none text-base placeholder:text-navyGray/60 dark:placeholder:text-white/40"
           maxLength={MAX + 50}
         />
+
+        {uploadedUrl ? (
+          <div className="relative w-fit">
+            {uploadedUrl.endsWith(".mp4") || uploadedUrl.endsWith(".webm") ? (
+              <video src={uploadedUrl} className="max-h-48 rounded-md" controls />
+            ) : (
+              <img src={uploadedUrl} alt="upload preview" className="max-h-48 rounded-md" />
+            )}
+            <button
+              type="button"
+              onClick={() => setUploadedUrl(null)}
+              className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-6 h-6 text-xs cursor-pointer"
+              aria-label="Remove media"
+            >
+              ×
+            </button>
+          </div>
+        ) : (
+          <input
+            type="url"
+            value={mediaUrl}
+            onChange={(e) => setMediaUrl(e.target.value)}
+            placeholder="Paste an image, video, or YouTube URL (optional)"
+            className="bg-transparent border border-gray-200 dark:border-white/15 rounded-md py-2 px-3 text-sm outline-none focus:border-primary"
+          />
+        )}
+
         {error && <p className="text-sm text-red-500">{error}</p>}
-        <div className="flex items-center justify-between">
-          <span
-            className={`text-sm ${
-              over ? "text-red-500" : "text-navyGray/60 dark:text-white/40"
-            }`}
-          >
-            {remaining}
-          </span>
+
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,video/*"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) upload(f);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading || Boolean(uploadedUrl)}
+              className="text-primary text-sm font-medium hover:underline disabled:opacity-40 cursor-pointer"
+            >
+              {uploading ? "Uploading…" : "📎 Attach"}
+            </button>
+            <span
+              className={`text-sm ${
+                over ? "text-red-500" : "text-navyGray/60 dark:text-white/40"
+              }`}
+            >
+              {remaining}
+            </span>
+          </div>
           <button
             type="submit"
-            disabled={submitting || over || content.trim().length === 0}
+            disabled={!canSubmit}
             className="px-5 py-2 rounded-full bg-primary text-white font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {submitting ? "Posting..." : "Post"}

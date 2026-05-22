@@ -37,10 +37,15 @@ yarn-error.log*
 # vercel
 .vercel
 
-# database
-/prisma/dev.db
-/prisma/dev.db-journal
-/prisma/migrations/dev.db*
+# database — never commit live SQLite files
+/prisma/*.db
+/prisma/*.db-journal
+
+# user uploads
+/public/uploads/avatars/*
+/public/uploads/posts/*
+!/public/uploads/avatars/.gitkeep
+!/public/uploads/posts/.gitkeep
 
 # typescript
 *.tsbuildinfo
