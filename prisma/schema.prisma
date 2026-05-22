@@ -31,25 +31,95 @@ model User {
   recvMsgs     ChatMessage[] @relation("MessagesReceived")
   roomsCreated ChatRoom[]    @relation("RoomsCreated")
   roomMessages RoomMessage[] @relation("RoomMessagesSent")
+  pollVotes    PollVote[]
+  reposts      Repost[]
+  postViews    PostView[]
 }
 
 model Post {
-  id        String    @id @default(cuid())
-  content   String
-  authorId  String
-  mediaUrl  String?
-  mediaType String?
-  pinnedAt  DateTime?
-  createdAt DateTime  @default(now())
+  id            String    @id @default(cuid())
+  content       String
+  authorId      String
+  mediaUrl      String?
+  mediaType     String?
+  pinnedAt      DateTime?
+  // "post" | "poll" | "question"
+  kind          String    @default("post")
+  pollExpiresAt DateTime?
+  createdAt     DateTime  @default(now())
 
-  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  likes     Like[]
-  comments  Comment[]
-  savedBy   SavedPost[]
+  author        User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes         Like[]
+  comments      Comment[]
+  savedBy       SavedPost[]
+  pollOptions   PollOption[]
+  pollVotes     PollVote[]
+  reposts       Repost[]
+  views         PostView[]
 
   @@index([createdAt])
   @@index([authorId])
   @@index([pinnedAt])
+}
+
+model Repost {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+  @@index([userId])
+}
+
+model PostView {
+  id        String   @id @default(cuid())
+  postId    String
+  // userId is nullable: anonymous viewers tracked by IP-derived key in `anonKey`.
+  userId    String?
+  anonKey   String?
+  createdAt DateTime @default(now())
+
+  post      Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // One unique view row per (post, user). For anonymous viewers we dedupe
+  // on (post, anonKey).
+  @@unique([postId, userId])
+  @@unique([postId, anonKey])
+  @@index([postId])
+}
+
+model PollOption {
+  id     String     @id @default(cuid())
+  postId String
+  text   String
+  order  Int
+
+  post   Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  votes  PollVote[]
+
+  @@index([postId])
+}
+
+model PollVote {
+  id        String   @id @default(cuid())
+  postId    String
+  optionId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([optionId])
+  @@index([postId])
 }
 
 model Like {

@@ -25,7 +25,7 @@ export default function SearchBar() {
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search Tw@er"
+        placeholder="Search Tw@er — try @user or #tag"
         className="w-full rounded-full bg-black/[0.04] dark:bg-white/10 px-4 py-1.5 pr-9 text-sm outline-none focus:bg-transparent focus:ring-2 focus:ring-primary/30"
       />
       <button

@@ -7,6 +7,7 @@ import Avatar from "@/app/components/feed/Avatar";
 import PostList from "@/app/components/feed/PostList";
 import AppShell from "@/app/components/layout/AppShell";
 import FollowButton from "@/app/components/profile/FollowButton";
+import { FEED_POST_INCLUDE, serializePost } from "@/lib/feed-include";
 
 export default async function ProfilePage({
   params,
@@ -39,19 +40,10 @@ export default async function ProfilePage({
     where: { authorId: user.id },
     orderBy: { createdAt: "desc" },
     take: 50,
-    include: {
-      author: {
-        select: { id: true, username: true, displayName: true, avatarUrl: true, role: true },
-      },
-      _count: { select: { likes: true, comments: true } },
-    },
+    include: FEED_POST_INCLUDE,
   });
 
-  const serialized = posts.map((p) => ({
-    ...p,
-    createdAt: p.createdAt.toISOString(),
-    pinnedAt: p.pinnedAt?.toISOString() ?? null,
-  }));
+  const serialized = posts.map(serializePost);
 
   return (
     <AppShell>

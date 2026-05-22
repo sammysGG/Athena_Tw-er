@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import Avatar from "@/app/components/feed/Avatar";
 import EmojiPicker from "@/app/components/feed/EmojiPicker";
 import MediaPreview from "@/app/components/feed/MediaPreview";
+import RichText from "@/app/components/feed/RichText";
 import { insertAtCursor } from "@/app/lib/insertAtCursor";
 import { timeAgo } from "@/app/lib/format";
 
@@ -176,7 +177,10 @@ export default function RoomThread({ room: initialRoom }: { room: RoomInfo }) {
                   </span>
                 </div>
                 {m.content && (
-                  <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>
+                  <RichText
+                    text={m.content}
+                    className="text-sm whitespace-pre-wrap break-words"
+                  />
                 )}
                 {m.mediaUrl && m.mediaType && (
                   <MediaPreview url={m.mediaUrl} type={m.mediaType} />

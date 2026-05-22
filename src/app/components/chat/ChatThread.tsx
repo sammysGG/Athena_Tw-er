@@ -5,6 +5,7 @@ import Link from "next/link";
 import Avatar from "@/app/components/feed/Avatar";
 import EmojiPicker from "@/app/components/feed/EmojiPicker";
 import MediaPreview from "@/app/components/feed/MediaPreview";
+import RichText from "@/app/components/feed/RichText";
 import { insertAtCursor } from "@/app/lib/insertAtCursor";
 import { timeAgo } from "@/app/lib/format";
 
@@ -162,7 +163,7 @@ export default function ChatThread({ me, other }: { me: Me; other: Other }) {
                     : "bg-black/[0.05] dark:bg-white/10 self-start rounded-bl-sm"
                 }`}
               >
-                {m.content && <p>{m.content}</p>}
+                {m.content && <RichText text={m.content} invert={fromMe} className="" />}
                 {m.mediaUrl && m.mediaType && (
                   <MediaPreview url={m.mediaUrl} type={m.mediaType} />
                 )}

@@ -5,6 +5,7 @@ import SearchBar from "@/app/components/layout/SearchBar";
 import AppShell from "@/app/components/layout/AppShell";
 
 export const metadata: Metadata = { title: "Search | Tw@er" };
+export const dynamic = "force-dynamic";
 
 export default function SearchPage() {
   return (

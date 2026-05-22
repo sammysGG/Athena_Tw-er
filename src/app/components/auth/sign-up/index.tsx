@@ -69,9 +69,9 @@ const SignUp = () => {
               <Logo />
             </div>
 
-            <h1 className="text-2xl font-bold mb-1">Create your account</h1>
+            <h1 className="text-2xl font-bold mb-1">Register to be a tw@ today</h1>
             <p className="text-navyGray/70 dark:text-white/60 text-sm mb-6">
-              Join Tw@er to start posting.
+              Tw@er — Where OPSEC goes to die.
             </p>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left">

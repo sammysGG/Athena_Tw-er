@@ -1,6 +1,8 @@
 import Feed from "@/app/components/feed/Feed";
 import AppShell from "@/app/components/layout/AppShell";
 
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <AppShell>

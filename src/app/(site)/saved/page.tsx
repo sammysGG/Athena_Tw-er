@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import PostList from "@/app/components/feed/PostList";
 import AppShell from "@/app/components/layout/AppShell";
+import { FEED_POST_INCLUDE, serializePost } from "@/lib/feed-include";
 
 export const metadata: Metadata = { title: "Saved | Tw@er" };
 
@@ -15,23 +16,10 @@ export default async function SavedPage() {
   const saved = await prisma.savedPost.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
-    include: {
-      post: {
-        include: {
-          author: {
-            select: { id: true, username: true, displayName: true, avatarUrl: true, role: true },
-          },
-          _count: { select: { likes: true, comments: true } },
-        },
-      },
-    },
+    include: { post: { include: FEED_POST_INCLUDE } },
   });
 
-  const posts = saved.map((s) => ({
-    ...s.post,
-    createdAt: s.post.createdAt.toISOString(),
-    pinnedAt: s.post.pinnedAt?.toISOString() ?? null,
-  }));
+  const posts = saved.map((s) => serializePost(s.post));
 
   return (
     <AppShell>

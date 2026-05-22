@@ -1,5 +1,6 @@
 import SideNav from "./SideNav";
 import Trending from "@/app/components/feed/Trending";
+import TrendingHashtags from "@/app/components/feed/TrendingHashtags";
 
 type Props = {
   children: React.ReactNode;
@@ -20,7 +21,12 @@ export default function AppShell({ children, rightColumn, showTrending = true }:
         <div className="min-w-0">{children}</div>
         <aside className="hidden lg:block">
           <div className="sticky top-24 flex flex-col gap-4">
-            {rightColumn ?? (showTrending ? <Trending /> : null)}
+            {rightColumn ?? (showTrending ? (
+              <>
+                <TrendingHashtags />
+                <Trending />
+              </>
+            ) : null)}
           </div>
         </aside>
       </div>

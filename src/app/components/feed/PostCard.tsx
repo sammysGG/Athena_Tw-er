@@ -1,11 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import Avatar from "./Avatar";
 import MediaPreview from "./MediaPreview";
 import EmojiPicker from "./EmojiPicker";
+import RichText from "./RichText";
+import PostPoll from "./PostPoll";
+import LikersPopover from "./LikersPopover";
+import Tooltip from "@/app/components/ui/Tooltip";
+import { RepostIcon, ShareIcon, EyeIcon, QuestionIcon } from "@/app/components/ui/Icons";
 import { useMeState } from "./MeStateProvider";
 import { timeAgo } from "@/app/lib/format";
 import { insertAtCursor } from "@/app/lib/insertAtCursor";
@@ -18,6 +23,12 @@ export type PostAuthor = {
   role?: string;
 };
 
+export type FeedPollOption = {
+  id: string;
+  text: string;
+  _count: { votes: number };
+};
+
 export type FeedPost = {
   id: string;
   content: string;
@@ -25,8 +36,13 @@ export type FeedPost = {
   mediaUrl?: string | null;
   mediaType?: string | null;
   pinnedAt?: string | null;
+  kind?: string;
+  pollExpiresAt?: string | null;
+  pollOptions?: FeedPollOption[];
   author: PostAuthor;
-  _count: { likes: number; comments: number };
+  _count: { likes: number; comments: number; reposts?: number; views?: number };
+  /** Header annotation when this row is a repost. */
+  repostedBy?: { username: string; displayName: string };
 };
 
 type Comment = {
@@ -50,10 +66,33 @@ export default function PostCard({
   const isAuthor = session?.user?.id === post.author.id;
   const liked = me.likedPostIds.has(post.id);
   const saved = me.savedPostIds.has(post.id);
+  const reposted = me.repostedPostIds.has(post.id);
 
   const [likeCount, setLikeCount] = useState(post._count.likes);
   const [likeBusy, setLikeBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
+  const [repostCount, setRepostCount] = useState(post._count.reposts ?? 0);
+  const [repostBusy, setRepostBusy] = useState(false);
+  const [viewCount, setViewCount] = useState(post._count.views ?? 0);
+  const [shareTip, setShareTip] = useState<string | null>(null);
+
+  // Fire-and-forget view count (deduped server-side per user/anonKey)
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(() => {
+      if (cancelled) return;
+      fetch(`/api/posts/${post.id}/view`, { method: "POST" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!cancelled && d?.views != null) setViewCount(d.views);
+        })
+        .catch(() => {});
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [post.id]);
 
   const [commentCount, setCommentCount] = useState(post._count.comments);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -97,6 +136,45 @@ export default function PostCard({
       setError("Could not update save");
     } finally {
       setSaveBusy(false);
+    }
+  };
+
+  const toggleRepost = async () => {
+    if (!authed) return (window.location.href = "/sign-in");
+    if (repostBusy) return;
+    setRepostBusy(true);
+    try {
+      const res = await fetch(`/api/posts/${post.id}/repost`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { reposted: boolean; count: number };
+      me.setReposted(post.id, data.reposted);
+      setRepostCount(data.count);
+      onChanged?.();
+    } catch {
+      setError("Could not retw@t");
+    } finally {
+      setRepostBusy(false);
+    }
+  };
+
+  const share = async () => {
+    const url = `${window.location.origin}/p/${post.id}`;
+    const title = `Post by @${post.author.username} on Tw@er`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+        return;
+      } catch {
+        // user cancelled — fall through to clipboard
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareTip("Link copied!");
+      setTimeout(() => setShareTip(null), 1500);
+    } catch {
+      setShareTip("Couldn't copy");
+      setTimeout(() => setShareTip(null), 1500);
     }
   };
 
@@ -178,9 +256,25 @@ export default function PostCard({
 
   return (
     <article className="border border-gray-200 dark:border-white/10 rounded-xl p-4">
+      {post.repostedBy && (
+        <p className="text-xs font-semibold mb-2 flex items-center gap-1 text-navyGray/70 dark:text-white/60">
+          <RepostIcon size={14} /> Retw@ted by{" "}
+          <Link
+            href={`/u/${post.repostedBy.username}`}
+            className="hover:underline"
+          >
+            @{post.repostedBy.username}
+          </Link>
+        </p>
+      )}
       {pinned && (
         <p className="text-xs text-primary font-semibold mb-2 flex items-center gap-1">
           📌 Pinned
+        </p>
+      )}
+      {post.kind === "question" && (
+        <p className="text-xs font-semibold mb-2 flex items-center gap-1 text-primary">
+          <QuestionIcon size={14} /> Question
         </p>
       )}
       <header className="flex items-start gap-3">
@@ -229,44 +323,90 @@ export default function PostCard({
           </div>
 
           {post.content && (
-            <p className="mt-2 whitespace-pre-wrap break-words">{post.content}</p>
+            <RichText
+              text={post.content}
+              className="mt-2 whitespace-pre-wrap break-words"
+            />
           )}
           {post.mediaUrl && post.mediaType && (
             <MediaPreview url={post.mediaUrl} type={post.mediaType} />
           )}
+          {post.kind === "poll" && post.pollOptions && post.pollOptions.length > 0 && (
+            <PostPoll
+              postId={post.id}
+              initialOptions={post.pollOptions}
+              pollExpiresAt={post.pollExpiresAt ?? null}
+            />
+          )}
 
-          <div className="mt-3 flex items-center gap-6 text-sm text-navyGray/70 dark:text-white/60">
-            <button
-              type="button"
-              onClick={openComments}
-              className="flex items-center gap-2 hover:text-primary cursor-pointer"
-              aria-expanded={commentsOpen}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-              {commentCount}
-            </button>
-            <button
-              type="button"
-              onClick={toggleLike}
-              disabled={likeBusy}
-              className={`flex items-center gap-2 cursor-pointer ${liked ? "text-red-500" : "hover:text-red-500"}`}
-              aria-pressed={liked}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
-              {likeCount}
-            </button>
-            <button
-              type="button"
-              onClick={toggleSave}
-              disabled={saveBusy}
-              className={`flex items-center gap-2 cursor-pointer ml-auto ${saved ? "text-primary" : "hover:text-primary"}`}
-              aria-pressed={saved}
-              title={saved ? "Unsave" : "Save"}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-              </svg>
-            </button>
+          <div className="mt-3 flex items-center gap-5 text-sm text-navyGray/70 dark:text-white/60">
+            <Tooltip label="Reply">
+              <button
+                type="button"
+                onClick={openComments}
+                className="flex items-center gap-1.5 hover:text-primary cursor-pointer"
+                aria-expanded={commentsOpen}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                {commentCount}
+              </button>
+            </Tooltip>
+            <Tooltip label={reposted ? "Undo Retw@t" : "Retw@t"}>
+              <button
+                type="button"
+                onClick={toggleRepost}
+                disabled={repostBusy}
+                className={`flex items-center gap-1.5 cursor-pointer ${reposted ? "text-green-600" : "hover:text-green-600"}`}
+                aria-pressed={reposted}
+              >
+                <RepostIcon size={18} />
+                {repostCount > 0 && <span>{repostCount}</span>}
+              </button>
+            </Tooltip>
+            <LikersPopover postId={post.id}>
+              <button
+                type="button"
+                onClick={toggleLike}
+                disabled={likeBusy}
+                className={`flex items-center gap-1.5 cursor-pointer ${liked ? "text-red-500" : "hover:text-red-500"}`}
+                aria-pressed={liked}
+                aria-label={liked ? "Unlike" : "Like"}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+                {likeCount}
+              </button>
+            </LikersPopover>
+            <Tooltip label="Views">
+              <span className="flex items-center gap-1.5">
+                <EyeIcon size={18} />
+                {viewCount}
+              </span>
+            </Tooltip>
+            <div className="ml-auto flex items-center gap-2">
+              <Tooltip label={shareTip ?? "Share"}>
+                <button
+                  type="button"
+                  onClick={share}
+                  className="hover:text-primary cursor-pointer"
+                  aria-label="Share"
+                >
+                  <ShareIcon size={18} />
+                </button>
+              </Tooltip>
+              <Tooltip label={saved ? "Unsave" : "Save"}>
+                <button
+                  type="button"
+                  onClick={toggleSave}
+                  disabled={saveBusy}
+                  className={`cursor-pointer ${saved ? "text-primary" : "hover:text-primary"}`}
+                  aria-pressed={saved}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              </Tooltip>
+            </div>
           </div>
 
           {commentsOpen && (
@@ -301,7 +441,10 @@ export default function PostCard({
                           </button>
                         )}
                       </div>
-                      <p className="text-sm whitespace-pre-wrap break-words">{c.content}</p>
+                      <RichText
+                        text={c.content}
+                        className="text-sm whitespace-pre-wrap break-words"
+                      />
                     </div>
                   </div>
                 ))

@@ -49,9 +49,9 @@ const Signin = () => {
               <Logo />
             </div>
 
-            <h1 className="text-2xl font-bold mb-1">Welcome back</h1>
+            <h1 className="text-2xl font-bold mb-1">Welcome back, tw@</h1>
             <p className="text-navyGray/70 dark:text-white/60 text-sm mb-6">
-              Sign in to post, like, and comment.
+              Sign in to post, like, and retw@t.
             </p>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left">
