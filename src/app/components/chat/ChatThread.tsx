@@ -6,6 +6,7 @@ import Avatar from "@/app/components/feed/Avatar";
 import EmojiPicker from "@/app/components/feed/EmojiPicker";
 import MediaPreview from "@/app/components/feed/MediaPreview";
 import RichText from "@/app/components/feed/RichText";
+import MentionAutocomplete, { type AutocompleteApi } from "@/app/components/feed/MentionAutocomplete";
 import { insertAtCursor } from "@/app/lib/insertAtCursor";
 import { timeAgo } from "@/app/lib/format";
 
@@ -41,6 +42,7 @@ export default function ChatThread({ me, other }: { me: Me; other: Other }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const acRef = useRef<AutocompleteApi>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const lastIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -231,14 +233,31 @@ export default function ChatThread({ me, other }: { me: Me; other: Other }) {
               });
             }}
           />
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={`Message @${other.username}`}
-            maxLength={800}
-            className="flex-1 rounded-full bg-black/[0.04] dark:bg-white/10 px-4 py-2 outline-none focus:bg-transparent focus:ring-2 focus:ring-primary/30 text-sm"
-          />
+          <div className="relative flex-1">
+            <input
+              ref={inputRef}
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                acRef.current?.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length);
+              }}
+              onKeyDown={(e) => {
+                if (acRef.current?.onKeyDown(e)) return;
+              }}
+              onKeyUp={(e) => {
+                const el = e.currentTarget;
+                acRef.current?.onChange(el.value, el.selectionStart ?? el.value.length);
+              }}
+              onClick={(e) => {
+                const el = e.currentTarget;
+                acRef.current?.onChange(el.value, el.selectionStart ?? el.value.length);
+              }}
+              placeholder={`Message @${other.username}`}
+              maxLength={800}
+              className="w-full rounded-full bg-black/[0.04] dark:bg-white/10 px-4 py-2 outline-none focus:bg-transparent focus:ring-2 focus:ring-primary/30 text-sm"
+            />
+            <MentionAutocomplete ref={acRef} inputRef={inputRef} value={text} setValue={setText} />
+          </div>
           <button
             type="submit"
             disabled={sending || (!text.trim() && !uploadedUrl)}

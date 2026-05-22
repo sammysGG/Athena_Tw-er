@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import Avatar from "./Avatar";
 import EmojiPicker from "./EmojiPicker";
 import MediaPreview from "./MediaPreview";
+import MentionAutocomplete, { type AutocompleteApi } from "./MentionAutocomplete";
 import Tooltip from "@/app/components/ui/Tooltip";
 import { PaperclipIcon, PollIcon, QuestionIcon } from "@/app/components/ui/Icons";
 import { insertAtCursor } from "@/app/lib/insertAtCursor";
@@ -29,6 +30,7 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const acRef = useRef<AutocompleteApi>(null);
 
   // First http(s) URL in the post text (used for inline embed). Memoized
   // here at the top, before any early returns, to satisfy hook rules.
@@ -173,15 +175,37 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
           <KindButton current={kind} value="question" onPick={setKind} label="Question" icon={<QuestionIcon size={14} />} />
         </div>
 
-        <textarea
-          ref={textRef}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder={placeholder}
-          rows={3}
-          className="w-full resize-none bg-transparent outline-none text-base placeholder:text-navyGray/60 dark:placeholder:text-white/40"
-          maxLength={MAX + 50}
-        />
+        <div className="relative">
+          <textarea
+            ref={textRef}
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              acRef.current?.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length);
+            }}
+            onKeyDown={(e) => {
+              if (acRef.current?.onKeyDown(e)) return;
+            }}
+            onKeyUp={(e) => {
+              const el = e.currentTarget;
+              acRef.current?.onChange(el.value, el.selectionStart ?? el.value.length);
+            }}
+            onClick={(e) => {
+              const el = e.currentTarget;
+              acRef.current?.onChange(el.value, el.selectionStart ?? el.value.length);
+            }}
+            placeholder={placeholder}
+            rows={3}
+            className="w-full resize-none bg-transparent outline-none text-base placeholder:text-navyGray/60 dark:placeholder:text-white/40"
+            maxLength={MAX + 50}
+          />
+          <MentionAutocomplete
+            ref={acRef}
+            inputRef={textRef}
+            value={content}
+            setValue={setContent}
+          />
+        </div>
 
         {kind === "poll" && (
           <div className="border border-gray-200 dark:border-white/15 rounded-lg p-3 flex flex-col gap-2">

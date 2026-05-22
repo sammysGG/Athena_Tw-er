@@ -9,6 +9,7 @@ import EmojiPicker from "./EmojiPicker";
 import RichText from "./RichText";
 import PostPoll from "./PostPoll";
 import LikersPopover from "./LikersPopover";
+import MentionAutocomplete, { type AutocompleteApi } from "./MentionAutocomplete";
 import Tooltip from "@/app/components/ui/Tooltip";
 import { RepostIcon, ShareIcon, EyeIcon, QuestionIcon } from "@/app/components/ui/Icons";
 import { useMeState } from "./MeStateProvider";
@@ -103,6 +104,7 @@ export default function PostCard({
   const [hidden, setHidden] = useState(false);
   const [pinned, setPinned] = useState(Boolean(post.pinnedAt));
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const commentAcRef = useRef<AutocompleteApi>(null);
 
   if (hidden) return null;
 
@@ -452,14 +454,39 @@ export default function PostCard({
 
               {authed ? (
                 <form onSubmit={submitComment} className="flex gap-2 items-center">
-                  <input
-                    ref={commentInputRef}
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="Write a comment"
-                    maxLength={300}
-                    className="flex-1 rounded-md border border-gray-200 dark:border-white/15 bg-transparent py-2 px-3 text-sm outline-none focus:border-primary"
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      ref={commentInputRef}
+                      value={commentText}
+                      onChange={(e) => {
+                        setCommentText(e.target.value);
+                        commentAcRef.current?.onChange(
+                          e.target.value,
+                          e.target.selectionStart ?? e.target.value.length
+                        );
+                      }}
+                      onKeyDown={(e) => {
+                        if (commentAcRef.current?.onKeyDown(e)) return;
+                      }}
+                      onKeyUp={(e) => {
+                        const el = e.currentTarget;
+                        commentAcRef.current?.onChange(el.value, el.selectionStart ?? el.value.length);
+                      }}
+                      onClick={(e) => {
+                        const el = e.currentTarget;
+                        commentAcRef.current?.onChange(el.value, el.selectionStart ?? el.value.length);
+                      }}
+                      placeholder="Write a comment"
+                      maxLength={300}
+                      className="w-full rounded-md border border-gray-200 dark:border-white/15 bg-transparent py-2 px-3 text-sm outline-none focus:border-primary"
+                    />
+                    <MentionAutocomplete
+                      ref={commentAcRef}
+                      inputRef={commentInputRef}
+                      value={commentText}
+                      setValue={setCommentText}
+                    />
+                  </div>
                   <EmojiPicker
                     onPick={(emoji) => {
                       const { next, cursor } = insertAtCursor(commentInputRef.current, emoji, commentText);
