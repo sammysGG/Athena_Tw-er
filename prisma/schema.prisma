@@ -29,6 +29,8 @@ model User {
   following    Follow[]      @relation("UserFollows")
   sentMsgs     ChatMessage[] @relation("MessagesSent")
   recvMsgs     ChatMessage[] @relation("MessagesReceived")
+  roomsCreated ChatRoom[]    @relation("RoomsCreated")
+  roomMessages RoomMessage[] @relation("RoomMessagesSent")
 }
 
 model Post {
@@ -117,4 +119,31 @@ model ChatMessage {
 
   @@index([senderId, receiverId, createdAt])
   @@index([receiverId, senderId, createdAt])
+}
+
+model ChatRoom {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy   User          @relation("RoomsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  messages    RoomMessage[]
+}
+
+model RoomMessage {
+  id        String   @id @default(cuid())
+  roomId    String
+  senderId  String
+  content   String
+  mediaUrl  String?
+  mediaType String?
+  createdAt DateTime @default(now())
+
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User     @relation("RoomMessagesSent", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
 }

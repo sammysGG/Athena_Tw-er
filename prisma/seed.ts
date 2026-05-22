@@ -348,6 +348,32 @@ async function main() {
     }
   }
   console.log(`✓ ${comments} comments`);
+
+  // Default chat rooms — upsert so reseeds keep them stable.
+  const adminId = userIdByUsername.get("admin");
+  if (adminId) {
+    const defaultRooms = [
+      { slug: "general", name: "General", description: "Open chat. Be civil." },
+      {
+        slug: "estonia-news",
+        name: "Estonia news",
+        description: "Live discussion of breaking news from Estonia and the Baltic.",
+      },
+      {
+        slug: "cyber",
+        name: "Cyber chatter",
+        description: "Incident notes, IOC sharing, defender talk.",
+      },
+    ];
+    for (const r of defaultRooms) {
+      await prisma.chatRoom.upsert({
+        where: { slug: r.slug },
+        update: { name: r.name, description: r.description },
+        create: { ...r, createdById: adminId },
+      });
+    }
+    console.log(`✓ ${defaultRooms.length} default rooms`);
+  }
 }
 
 main()

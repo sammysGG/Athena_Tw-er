@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import AppShell from "@/app/components/layout/AppShell";
-import ChatList from "@/app/components/chat/ChatList";
+import ChatTabs from "@/app/components/chat/ChatTabs";
 
 export const metadata: Metadata = { title: "Chat | Tw@er" };
 
@@ -14,7 +14,7 @@ export default async function ChatIndexPage() {
   return (
     <AppShell showTrending={false}>
       <h1 className="text-2xl font-bold mb-6">Messages</h1>
-      <ChatList />
+      <ChatTabs />
     </AppShell>
   );
 }

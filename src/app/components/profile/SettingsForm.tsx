@@ -151,9 +151,17 @@ export default function SettingsForm({ user }: Props) {
       </label>
       <label className="text-sm">
         <span className="text-navyGray/80 dark:text-white/70">Gender</span>
-        <select value={form.gender} onChange={change("gender")} className="input-class mt-1">
+        <select
+          value={form.gender}
+          onChange={change("gender")}
+          className="input-class mt-1 bg-white text-navyGray dark:bg-surfaceDark dark:text-white"
+        >
           {GENDERS.map((g) => (
-            <option key={g.value} value={g.value}>
+            <option
+              key={g.value}
+              value={g.value}
+              className="bg-white text-navyGray dark:bg-surfaceDark dark:text-white"
+            >
               {g.label}
             </option>
           ))}
