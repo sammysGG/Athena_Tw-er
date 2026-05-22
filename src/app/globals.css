@@ -29,7 +29,7 @@ body {
 
 @layer utilities {
   .container {
-    @apply w-full max-w-[75rem] mx-auto mt-0 mb-0 py-0 sm:px-7 px-5;
+    @apply w-full max-w-[75rem] mx-auto sm:px-7 px-5;
   }
   .input-class {
     @apply w-full rounded-md border border-gray-200 dark:border-white/20 py-3 px-5 outline-none transition focus:border-primary/60 dark:focus:border-primary/60 ;

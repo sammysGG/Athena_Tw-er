@@ -24,6 +24,11 @@ model User {
   posts        Post[]
   likes        Like[]
   comments     Comment[]
+  savedPosts   SavedPost[]
+  followers    Follow[]      @relation("UserFollowers")
+  following    Follow[]      @relation("UserFollows")
+  sentMsgs     ChatMessage[] @relation("MessagesSent")
+  recvMsgs     ChatMessage[] @relation("MessagesReceived")
 }
 
 model Post {
@@ -38,6 +43,7 @@ model Post {
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   likes     Like[]
   comments  Comment[]
+  savedBy   SavedPost[]
 
   @@index([createdAt])
   @@index([authorId])
@@ -68,4 +74,47 @@ model Comment {
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower    User @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+model SavedPost {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id         String    @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String
+  mediaUrl   String?
+  mediaType  String?
+  createdAt  DateTime  @default(now())
+  readAt     DateTime?
+
+  sender     User @relation("MessagesSent",     fields: [senderId],   references: [id], onDelete: Cascade)
+  receiver   User @relation("MessagesReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, senderId, createdAt])
 }

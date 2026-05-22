@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AdminDashboard from "@/app/components/admin/AdminDashboard";
+import AppShell from "@/app/components/layout/AppShell";
 
 export const metadata: Metadata = { title: "Admin | Tw@er" };
 
@@ -14,14 +15,12 @@ export default async function AdminPage() {
   if (!me || me.role !== "admin") redirect("/");
 
   return (
-    <main className="container pt-28 pb-16 min-h-screen">
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">Admin dashboard</h1>
-        <p className="text-navyGray/70 dark:text-white/60 mb-6">
-          Hello {me.displayName}. From here you can moderate users and posts.
-        </p>
-        <AdminDashboard currentUserId={me.id} />
-      </div>
-    </main>
+    <AppShell showTrending={false}>
+      <h1 className="text-2xl font-bold mb-2">Admin dashboard</h1>
+      <p className="text-navyGray/70 dark:text-white/60 mb-6">
+        Hello {me.displayName}. From here you can moderate users and posts.
+      </p>
+      <AdminDashboard currentUserId={me.id} />
+    </AppShell>
   );
 }

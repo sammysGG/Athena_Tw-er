@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import Avatar from "./Avatar";
 import MediaPreview from "./MediaPreview";
+import EmojiPicker from "./EmojiPicker";
+import { useMeState } from "./MeStateProvider";
 import { timeAgo } from "@/app/lib/format";
+import { insertAtCursor } from "@/app/lib/insertAtCursor";
 
 export type PostAuthor = {
   id: string;
@@ -41,13 +44,16 @@ export default function PostCard({
   onChanged?: () => void;
 }) {
   const { data: session } = useSession();
+  const me = useMeState();
   const authed = Boolean(session?.user);
   const isAdmin = (session?.user as { role?: string } | undefined)?.role === "admin";
   const isAuthor = session?.user?.id === post.author.id;
+  const liked = me.likedPostIds.has(post.id);
+  const saved = me.savedPostIds.has(post.id);
 
   const [likeCount, setLikeCount] = useState(post._count.likes);
-  const [liked, setLiked] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
 
   const [commentCount, setCommentCount] = useState(post._count.comments);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -57,6 +63,7 @@ export default function PostCard({
   const [error, setError] = useState<string | null>(null);
   const [hidden, setHidden] = useState(false);
   const [pinned, setPinned] = useState(Boolean(post.pinnedAt));
+  const commentInputRef = useRef<HTMLInputElement>(null);
 
   if (hidden) return null;
 
@@ -68,12 +75,28 @@ export default function PostCard({
       const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { liked: boolean; count: number };
-      setLiked(data.liked);
+      me.setLiked(post.id, data.liked);
       setLikeCount(data.count);
     } catch {
       setError("Could not update like");
     } finally {
       setLikeBusy(false);
+    }
+  };
+
+  const toggleSave = async () => {
+    if (!authed) return (window.location.href = "/sign-in");
+    if (saveBusy) return;
+    setSaveBusy(true);
+    try {
+      const res = await fetch(`/api/posts/${post.id}/save`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { saved: boolean };
+      me.setSaved(post.id, data.saved);
+    } catch {
+      setError("Could not update save");
+    } finally {
+      setSaveBusy(false);
     }
   };
 
@@ -232,6 +255,18 @@ export default function PostCard({
               <svg width="18" height="18" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
               {likeCount}
             </button>
+            <button
+              type="button"
+              onClick={toggleSave}
+              disabled={saveBusy}
+              className={`flex items-center gap-2 cursor-pointer ml-auto ${saved ? "text-primary" : "hover:text-primary"}`}
+              aria-pressed={saved}
+              title={saved ? "Unsave" : "Save"}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
           </div>
 
           {commentsOpen && (
@@ -273,13 +308,24 @@ export default function PostCard({
               )}
 
               {authed ? (
-                <form onSubmit={submitComment} className="flex gap-2">
+                <form onSubmit={submitComment} className="flex gap-2 items-center">
                   <input
+                    ref={commentInputRef}
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
                     placeholder="Write a comment"
                     maxLength={300}
                     className="flex-1 rounded-md border border-gray-200 dark:border-white/15 bg-transparent py-2 px-3 text-sm outline-none focus:border-primary"
+                  />
+                  <EmojiPicker
+                    onPick={(emoji) => {
+                      const { next, cursor } = insertAtCursor(commentInputRef.current, emoji, commentText);
+                      setCommentText(next);
+                      requestAnimationFrame(() => {
+                        commentInputRef.current?.focus();
+                        commentInputRef.current?.setSelectionRange(cursor, cursor);
+                      });
+                    }}
                   />
                   <button
                     type="submit"

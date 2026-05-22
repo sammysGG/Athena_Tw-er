@@ -15,7 +15,7 @@ const ALLOWED = new Set<string>([
 ]);
 const ALLOWED_KINDS = new Set(["avatar", "post"]);
 
-const UPLOAD_ROOT = join(process.cwd(), "public", "uploads");
+const UPLOAD_ROOT = join(process.cwd(), "uploads");
 
 export async function POST(req: Request) {
   try {
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     const bytes = Buffer.from(await file.arrayBuffer());
     await writeFile(join(targetDir, filename), bytes);
 
-    const url = `/uploads/${subdir}/${filename}`;
+    const url = `/api/media/${subdir}/${filename}`;
     const mediaType = file.type.startsWith("video/") ? "video" : "image";
     return NextResponse.json({ url, type: mediaType });
   } catch (err) {

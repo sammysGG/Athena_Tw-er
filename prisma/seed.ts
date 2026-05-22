@@ -13,7 +13,14 @@ type SeedUser = {
   gender?: string;
   location?: string;
   website?: string;
+  avatarStyle?: string; // dicebear style key
+  avatarSeed?: string; // override seed (defaults to username)
 };
+
+function dicebearUrl(style: string, seed: string): string {
+  // Dicebear v9 — deterministic SVG avatars, no API key.
+  return `https://api.dicebear.com/9.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+}
 
 const SEED_USERS: SeedUser[] = [
   {
@@ -25,6 +32,8 @@ const SEED_USERS: SeedUser[] = [
     bio: "Platform admin account. God-mode by default.",
     gender: "prefer_not_to_say",
     location: "Server room",
+    avatarStyle: "shapes",
+    avatarSeed: "twater-admin",
   },
   {
     username: "twater_news",
@@ -34,6 +43,8 @@ const SEED_USERS: SeedUser[] = [
     bio: "Aggregating reporting on the Estonia–Donovia situation. Posts are summaries, not endorsements.",
     location: "Tallinn, Estonia",
     website: "https://example.org/news",
+    avatarStyle: "icons",
+    avatarSeed: "news-network",
   },
   {
     username: "donoviadabest",
@@ -43,6 +54,8 @@ const SEED_USERS: SeedUser[] = [
     bio: "Loyal son of the Motherland. Truth from the people of Donovia. The western lies will not stand!",
     gender: "male",
     location: "Donovia",
+    avatarStyle: "avataaars",
+    avatarSeed: "viktor-donov",
   },
   {
     username: "natowatch",
@@ -51,6 +64,8 @@ const SEED_USERS: SeedUser[] = [
     password: "natoanalyst",
     bio: "Open-source analyst tracking NATO posture in the Baltic.",
     location: "Brussels",
+    avatarStyle: "shapes",
+    avatarSeed: "nato-blue",
   },
   {
     username: "ariana_volkov",
@@ -60,6 +75,7 @@ const SEED_USERS: SeedUser[] = [
     bio: "Cyber threat researcher. Estonia-based. Caffeine-fueled.",
     gender: "female",
     location: "Tallinn",
+    avatarStyle: "avataaars",
   },
   {
     username: "cpt_harding",
@@ -69,6 +85,7 @@ const SEED_USERS: SeedUser[] = [
     bio: "Former British Forces. Commentary on sub-threshold warfare in the Baltic.",
     gender: "male",
     location: "Tallinn / London",
+    avatarStyle: "avataaars",
   },
   {
     username: "tallinnportwatch",
@@ -77,6 +94,8 @@ const SEED_USERS: SeedUser[] = [
     password: "passw0rd",
     bio: "Citizen-run watch on shipping movements at Tallinn Port.",
     location: "Tallinn, Estonia",
+    avatarStyle: "icons",
+    avatarSeed: "port-anchor",
   },
   {
     username: "greyzonegirl",
@@ -85,6 +104,7 @@ const SEED_USERS: SeedUser[] = [
     password: "passw0rd",
     bio: "Reading too much about hybrid threats. Posting too little.",
     gender: "female",
+    avatarStyle: "avataaars",
   },
   {
     username: "us_baltic_obs",
@@ -93,6 +113,7 @@ const SEED_USERS: SeedUser[] = [
     password: "passw0rd",
     bio: "Tracking US Forces rotations into the Baltic States.",
     location: "Washington, DC",
+    avatarStyle: "avataaars",
   },
   {
     username: "kalev_estonian",
@@ -102,6 +123,7 @@ const SEED_USERS: SeedUser[] = [
     bio: "Estonian, IT guy, occasional reservist.",
     gender: "male",
     location: "Tartu, Estonia",
+    avatarStyle: "avataaars",
   },
 ];
 
@@ -228,6 +250,7 @@ async function main() {
   const userIdByUsername = new Map<string, string>();
   for (const u of SEED_USERS) {
     const passwordHash = await bcrypt.hash(u.password, 10);
+    const avatarUrl = dicebearUrl(u.avatarStyle ?? "avataaars", u.avatarSeed ?? u.username);
     const created = await prisma.user.upsert({
       where: { username: u.username },
       update: {
@@ -237,6 +260,7 @@ async function main() {
         location: u.location,
         website: u.website,
         role: u.role ?? "user",
+        avatarUrl,
       },
       create: {
         username: u.username,
@@ -248,6 +272,7 @@ async function main() {
         gender: u.gender,
         location: u.location,
         website: u.website,
+        avatarUrl,
       },
     });
     userIdByUsername.set(u.username, created.id);

@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import Avatar from "./Avatar";
+import EmojiPicker from "./EmojiPicker";
+import { insertAtCursor } from "@/app/lib/insertAtCursor";
 
 const MAX = 280;
 
@@ -16,6 +18,7 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
 
   if (status === "loading") {
     return (
@@ -115,9 +118,10 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
       />
       <div className="flex-1 flex flex-col gap-3 min-w-0">
         <textarea
+          ref={textRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="What's happening?"
+          placeholder="What's happening? (paste a GIF/image/video URL or attach a file 👇)"
           rows={3}
           className="w-full resize-none bg-transparent outline-none text-base placeholder:text-navyGray/60 dark:placeholder:text-white/40"
           maxLength={MAX + 50}
@@ -171,6 +175,16 @@ export default function Composer({ onPosted }: { onPosted: () => void }) {
             >
               {uploading ? "Uploading…" : "📎 Attach"}
             </button>
+            <EmojiPicker
+              onPick={(emoji) => {
+                const { next, cursor } = insertAtCursor(textRef.current, emoji, content);
+                setContent(next);
+                requestAnimationFrame(() => {
+                  textRef.current?.focus();
+                  textRef.current?.setSelectionRange(cursor, cursor);
+                });
+              }}
+            />
             <span
               className={`text-sm ${
                 over ? "text-red-500" : "text-navyGray/60 dark:text-white/40"

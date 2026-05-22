@@ -25,7 +25,7 @@ export default function RootLayout({
       <body className={manrope.className}>
         <Providers>
           <Header />
-          {children}
+          <div className="pt-16">{children}</div>
           <Footer />
         </Providers>
       </body>

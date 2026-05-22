@@ -40,12 +40,14 @@ yarn-error.log*
 # database — never commit live SQLite files
 /prisma/*.db
 /prisma/*.db-journal
+/prisma/data/
+/data/
 
-# user uploads
-/public/uploads/avatars/*
-/public/uploads/posts/*
-!/public/uploads/avatars/.gitkeep
-!/public/uploads/posts/.gitkeep
+# user uploads (served via /api/media/...)
+/uploads/avatars/*
+/uploads/posts/*
+!/uploads/avatars/.gitkeep
+!/uploads/posts/.gitkeep
 
 # typescript
 *.tsbuildinfo

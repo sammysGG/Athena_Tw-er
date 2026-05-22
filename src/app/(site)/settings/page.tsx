@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import SettingsForm from "@/app/components/profile/SettingsForm";
+import AppShell from "@/app/components/layout/AppShell";
 
 export const metadata: Metadata = { title: "Edit Profile | Tw@er" };
 
@@ -27,20 +28,18 @@ export default async function SettingsPage() {
   if (!user) redirect("/sign-in");
 
   return (
-    <main className="container pt-28 pb-16 min-h-screen">
-      <div className="max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Edit your profile</h1>
-        <SettingsForm
-          user={{
-            ...user,
-            bio: user.bio ?? "",
-            gender: user.gender ?? "",
-            location: user.location ?? "",
-            website: user.website ?? "",
-            avatarUrl: user.avatarUrl ?? null,
-          }}
-        />
-      </div>
-    </main>
+    <AppShell showTrending={false}>
+      <h1 className="text-2xl font-bold mb-6">Edit your profile</h1>
+      <SettingsForm
+        user={{
+          ...user,
+          bio: user.bio ?? "",
+          gender: user.gender ?? "",
+          location: user.location ?? "",
+          website: user.website ?? "",
+          avatarUrl: user.avatarUrl ?? null,
+        }}
+      />
+    </AppShell>
   );
 }

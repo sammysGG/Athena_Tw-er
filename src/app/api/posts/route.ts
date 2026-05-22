@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     let storedMediaUrl: string | null = null;
     let storedMediaType: string | null = null;
     if (mediaUrl) {
-      if (mediaUrl.startsWith("/uploads/")) {
+      if (mediaUrl.startsWith("/api/media/")) {
         storedMediaUrl = mediaUrl;
         storedMediaType = /\.(mp4|webm|mov|m4v)$/i.test(mediaUrl) ? "video" : "image";
       } else {
