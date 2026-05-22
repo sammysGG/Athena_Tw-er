@@ -19,6 +19,9 @@ model User {
   website      String?
   avatarUrl    String?
   role         String    @default("user")
+  // Orthogonal to role. Visual badge on the author label.
+  // "press" | "gov" | "mil" | "state" | "bot" | "ai" | null
+  verifiedType String?
   createdAt    DateTime  @default(now())
 
   posts        Post[]
@@ -46,6 +49,15 @@ model Post {
   // "post" | "poll" | "question"
   kind          String    @default("post")
   pollExpiresAt DateTime?
+  // Admin-applied banner: "disputed" | "state-media" | "ai-generated" |
+  // "official" | "satire" | null
+  label         String?
+  // When set in the future, the post is hidden from the public feed
+  // until this timestamp passes. Used for scenario injects.
+  scheduledFor  DateTime?
+  // Optional reference to the admin who injected this post (when posted
+  // on behalf of another user). Display author remains `authorId`.
+  injectedById  String?
   createdAt     DateTime  @default(now())
 
   author        User       @relation(fields: [authorId], references: [id], onDelete: Cascade)

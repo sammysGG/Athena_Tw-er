@@ -15,11 +15,13 @@ export default async function AdminPage() {
   if (!me || me.role !== "admin") redirect("/");
 
   return (
-    <AppShell showTrending={false}>
-      <h1 className="text-2xl font-bold mb-2">Admin dashboard</h1>
-      <p className="text-navyGray/70 dark:text-white/60 mb-6">
-        Hello {me.displayName}. From here you can moderate users and posts.
-      </p>
+    <AppShell wide>
+      <div className="mb-6 flex items-baseline gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold">Admin dashboard</h1>
+        <p className="text-navyGray/70 dark:text-white/60">
+          Hello {me.displayName}. Scenario control, moderation, and audit live here.
+        </p>
+      </div>
       <AdminDashboard currentUserId={me.id} />
     </AppShell>
   );

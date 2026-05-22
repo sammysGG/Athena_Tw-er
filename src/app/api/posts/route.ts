@@ -1,34 +1,28 @@
 import { NextResponse } from "next/server";
-import { requireUser, errorResponse } from "@/lib/auth-helpers";
+import { getCurrentUser, requireUser, errorResponse } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { parseMediaUrl } from "@/lib/media";
+import { FEED_POST_INCLUDE, visiblePostsWhere } from "@/lib/feed-include";
 
 const MAX_POST_LEN = 280;
 const MAX_OPTION_LEN = 40;
 
-const POLL_INCLUDE = {
-  pollOptions: {
-    orderBy: { order: "asc" as const },
-    include: { _count: { select: { votes: true } } },
-  },
-};
-
-const FEED_INCLUDE = {
-  author: {
-    select: { id: true, username: true, displayName: true, avatarUrl: true, role: true },
-  },
-  _count: { select: { likes: true, comments: true, reposts: true, views: true } },
-  ...POLL_INCLUDE,
-} as const;
+const FEED_INCLUDE = FEED_POST_INCLUDE;
 
 export async function GET() {
+  const me = await getCurrentUser();
+  const isAdmin = me?.role === "admin";
+  const where = visiblePostsWhere(isAdmin);
+
   const [posts, reposts] = await Promise.all([
     prisma.post.findMany({
+      where,
       orderBy: [{ pinnedAt: "desc" }, { createdAt: "desc" }],
       take: 50,
       include: FEED_INCLUDE,
     }),
     prisma.repost.findMany({
+      where: { post: where },
       orderBy: { createdAt: "desc" },
       take: 50,
       include: {

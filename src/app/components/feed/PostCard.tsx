@@ -10,6 +10,8 @@ import RichText from "./RichText";
 import PostPoll from "./PostPoll";
 import LikersPopover from "./LikersPopover";
 import MentionAutocomplete, { type AutocompleteApi } from "./MentionAutocomplete";
+import VerifiedBadge from "./VerifiedBadge";
+import PostLabel from "./PostLabel";
 import Tooltip from "@/app/components/ui/Tooltip";
 import { RepostIcon, ShareIcon, EyeIcon, QuestionIcon } from "@/app/components/ui/Icons";
 import { useMeState } from "./MeStateProvider";
@@ -22,6 +24,7 @@ export type PostAuthor = {
   displayName: string;
   avatarUrl?: string | null;
   role?: string;
+  verifiedType?: string | null;
 };
 
 export type FeedPollOption = {
@@ -40,6 +43,8 @@ export type FeedPost = {
   kind?: string;
   pollExpiresAt?: string | null;
   pollOptions?: FeedPollOption[];
+  label?: string | null;
+  scheduledFor?: string | null;
   author: PostAuthor;
   _count: { likes: number; comments: number; reposts?: number; views?: number };
   /** Header annotation when this row is a repost. */
@@ -279,6 +284,12 @@ export default function PostCard({
           <QuestionIcon size={14} /> Question
         </p>
       )}
+      {post.scheduledFor && new Date(post.scheduledFor).getTime() > Date.now() && (
+        <p className="text-xs font-semibold mb-2 flex items-center gap-1 text-amber-600 dark:text-amber-400">
+          ⏰ Scheduled for {new Date(post.scheduledFor).toLocaleString()} — visible to admins only until then.
+        </p>
+      )}
+      <PostLabel label={post.label} />
       <header className="flex items-start gap-3">
         <Link href={`/u/${post.author.username}`}>
           <Avatar name={post.author.displayName} src={post.author.avatarUrl} />
@@ -293,6 +304,7 @@ export default function PostCard({
                 admin
               </span>
             )}
+            <VerifiedBadge type={post.author.verifiedType} />
             <Link
               href={`/u/${post.author.username}`}
               className="text-sm text-navyGray/70 dark:text-white/50 hover:underline"
