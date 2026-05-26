@@ -1,268 +1,226 @@
 ---
-# ============================================================================
-#  Athena range — Tw@er target deploy (single playbook, git-driven)
-# ============================================================================
+# Athena range — Tw@er target.
+# Role tasks file: drop in as roles/<role>/tasks/main.yml (flat task list, no
+# play wrapper). Same style as the port-range role.
 #
-#  Simple deploy in the same style as the port-range playbook:
-#    * install Docker + Compose, clone this repo to /opt/twatter from GitHub,
-#      generate a .env, expose the app on the range VLAN (:18091), and run it.
-#
-#  THE LOCKDOWN LIVES IN GIT, not in this playbook. A boot-time systemd unit
-#  (twatter-update.service) runs `git reset --hard origin/main` and rebuilds on
-#  every boot, so the application + scenario are owned by the GitHub repo: any
-#  student tampering with the code on the box is wiped and rebuilt from main.
-#  Students harden the running credentials (which live in the persistent ./data
-#  volume and survive the rebuild); they cannot persistently change the app.
-#
-#  Run (ad-hoc, no inventory file):
-#    ansible-playbook -i '10.20.30.41,' -u range -b -e target=all deploy.yml
-#  Run (with an inventory file defining [range_targets]):
-#    ansible-playbook -i inventory.ini deploy.yml
-#
-#  Bootstrap a target with no python yet:
-#    ansible -i '10.20.30.41,' -u range all -m raw -a \
-#      'apt-get update && apt-get install -y python3' -b
-# ============================================================================
+# The lockdown lives in git: the twatter-update.service installed below runs
+# `git reset --hard origin/main` + rebuild on every boot, so the app/scenario
+# is owned by the GitHub repo and student edits on the box are wiped. Hardened
+# credentials live in the persistent ./data volume and survive the rebuild.
 
-- name: Deploy Tw@er range target
-  hosts: "{{ target | default('range_targets') }}"
-  become: true
+- name: Check if docker is already installed
+  ansible.builtin.command: docker --version
+  register: docker_check
+  changed_when: false
+  failed_when: false
 
-  vars:
-    repo_url:    "https://github.com/sammysGG/Athena_Tw-er.git"
-    app_dir:     "/opt/twatter"
-    app_service: "twatter"           # docker-compose service name
-    app_port:    18091               # host port published on the range VLAN
-    health_path: "/api/posts"        # public API used for the readiness probe
-    public_base_url: "http://{{ ansible_host | default(inventory_hostname) }}:{{ app_port }}"
-    docker_user: "{{ ansible_user | default('root') }}"   # gets docker access
-    seed_on_deploy: true             # Tw@er does not self-seed on boot
+- name: Install docker prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+    update_cache: yes
+  when: docker_check.rc != 0
 
-  tasks:
-    - name: Check if docker is already installed
-      ansible.builtin.command: docker --version
-      register: docker_check
-      changed_when: false
-      failed_when: false
+- name: Create apt keyrings dir
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  when: docker_check.rc != 0
 
-    - name: Install docker prerequisites
-      ansible.builtin.apt:
-        name: [ca-certificates, curl, gnupg, lsb-release]
-        state: present
-        update_cache: yes
-      when: docker_check.rc != 0
+- name: Add docker GPG key
+  ansible.builtin.shell:
+    cmd: |
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      chmod a+r /etc/apt/keyrings/docker.gpg
+    creates: /etc/apt/keyrings/docker.gpg
+  when: docker_check.rc != 0
 
-    - name: Create apt keyrings dir
-      ansible.builtin.file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: '0755'
-      when: docker_check.rc != 0
+- name: Add docker apt repo
+  ansible.builtin.shell:
+    cmd: |
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+    creates: /etc/apt/sources.list.d/docker.list
+  when: docker_check.rc != 0
 
-    - name: Add docker GPG key
-      ansible.builtin.shell:
-        cmd: |
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-          chmod a+r /etc/apt/keyrings/docker.gpg
-        creates: /etc/apt/keyrings/docker.gpg
-      when: docker_check.rc != 0
+- name: Install docker engine + compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: yes
+  when: docker_check.rc != 0
 
-    - name: Add docker apt repo
-      ansible.builtin.shell:
-        cmd: |
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
-        creates: /etc/apt/sources.list.d/docker.list
-      when: docker_check.rc != 0
+- name: Enable and start docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: yes
+    state: started
 
-    - name: Install docker engine + compose plugin
-      ansible.builtin.apt:
-        name: [docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin, docker-compose-plugin]
-        state: present
-        update_cache: yes
-      when: docker_check.rc != 0
+- name: Add user to docker group
+  ansible.builtin.user:
+    name: user
+    groups: docker
+    append: yes
 
-    - name: Enable and start docker
-      ansible.builtin.systemd:
-        name: docker
-        enabled: yes
-        state: started
+- name: Install git
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: yes
 
-    - name: Add user to docker group
-      ansible.builtin.user:
-        name: "{{ docker_user }}"
-        groups: docker
-        append: yes
-      when: docker_user != 'root'
+- name: Clone twatter repo
+  ansible.builtin.git:
+    repo: https://github.com/sammysGG/Athena_Tw-er.git
+    dest: /opt/twatter
+    version: main
+    force: yes
 
-    - name: Install git
-      ansible.builtin.apt:
-        name: git
-        state: present
-        update_cache: yes
+- name: Fix repo ownership
+  ansible.builtin.file:
+    path: /opt/twatter
+    state: directory
+    owner: root
+    group: root
+    recurse: yes
 
-    - name: Clone Tw@er repo
-      ansible.builtin.git:
-        repo: "{{ repo_url }}"
-        dest: "{{ app_dir }}"
-        version: main
-        force: yes
+- name: Create data/upload dirs owned by the container uid (1001)
+  ansible.builtin.file:
+    path: "/opt/twatter/{{ item }}"
+    state: directory
+    owner: '1001'
+    group: '1001'
+    mode: '0755'
+  loop:
+    - data
+    - uploads
 
-    - name: Fix repo ownership
-      ansible.builtin.file:
-        path: "{{ app_dir }}"
-        state: directory
-        owner: root
-        group: root
-        recurse: yes
+- name: Check if .env already exists
+  ansible.builtin.stat:
+    path: /opt/twatter/.env
+  register: env_file
 
-    - name: Create data/upload dirs owned by the container uid (1001)
-      ansible.builtin.file:
-        path: "{{ app_dir }}/{{ item }}"
-        state: directory
-        owner: '1001'
-        group: '1001'
-        mode: '0755'
-      loop: [data, uploads]
+- name: Generate .env with a random session secret
+  ansible.builtin.copy:
+    dest: /opt/twatter/.env
+    owner: root
+    group: root
+    mode: '0600'
+    content: |
+      NEXTAUTH_SECRET="{{ lookup('pipe', 'openssl rand -hex 32') }}"
+      NEXTAUTH_URL="http://{{ ansible_host | default(inventory_hostname) }}:18091"
+      APP_BIND="0.0.0.0"
+      APP_PORT="18091"
+  when: not env_file.stat.exists
 
-    - name: Check if .env already exists
-      ansible.builtin.stat:
-        path: "{{ app_dir }}/.env"
-      register: env_file
+- name: Bind to all interfaces on the range VLAN
+  ansible.builtin.lineinfile:
+    path: /opt/twatter/.env
+    regexp: '^APP_BIND='
+    line: 'APP_BIND="0.0.0.0"'
 
-    - name: Generate .env with a random session secret
-      ansible.builtin.copy:
-        dest: "{{ app_dir }}/.env"
-        owner: root
-        group: root
-        mode: '0600'
-        content: |
-          NEXTAUTH_SECRET="{{ lookup('pipe', 'openssl rand -hex 32') }}"
-          NEXTAUTH_URL="{{ public_base_url }}"
-          APP_BIND="0.0.0.0"
-          APP_PORT="{{ app_port }}"
-      when: not env_file.stat.exists
+- name: Pin the published port
+  ansible.builtin.lineinfile:
+    path: /opt/twatter/.env
+    regexp: '^APP_PORT='
+    line: 'APP_PORT="18091"'
 
-    - name: Bind to all interfaces on the range VLAN
-      ansible.builtin.lineinfile:
-        path: "{{ app_dir }}/.env"
-        regexp: '^APP_BIND='
-        line: 'APP_BIND="0.0.0.0"'
+- name: Pin the public URL
+  ansible.builtin.lineinfile:
+    path: /opt/twatter/.env
+    regexp: '^NEXTAUTH_URL='
+    line: 'NEXTAUTH_URL="http://{{ ansible_host | default(inventory_hostname) }}:18091"'
 
-    - name: Pin the published port
-      ansible.builtin.lineinfile:
-        path: "{{ app_dir }}/.env"
-        regexp: '^APP_PORT='
-        line: 'APP_PORT="{{ app_port }}"'
+- name: Ensure .env perms are 600
+  ansible.builtin.file:
+    path: /opt/twatter/.env
+    owner: root
+    group: root
+    mode: '0600'
 
-    - name: Pin the public URL
-      ansible.builtin.lineinfile:
-        path: "{{ app_dir }}/.env"
-        regexp: '^NEXTAUTH_URL='
-        line: 'NEXTAUTH_URL="{{ public_base_url }}"'
+- name: Allow the app port through ufw
+  ansible.builtin.command: ufw allow 18091/tcp
+  register: ufw_result
+  changed_when: "'added' in ufw_result.stdout or 'updated' in ufw_result.stdout"
+  failed_when: false
 
-    - name: Ensure .env perms are 600
-      ansible.builtin.file:
-        path: "{{ app_dir }}/.env"
-        owner: root
-        group: root
-        mode: '0600'
+- name: Build and start the container
+  ansible.builtin.command:
+    cmd: docker compose up -d --build --force-recreate
+    chdir: /opt/twatter
 
-    - name: Allow the app port through ufw
-      ansible.builtin.command: "ufw allow {{ app_port }}/tcp"
-      register: ufw_result
-      changed_when: "'added' in ufw_result.stdout or 'updated' in ufw_result.stdout"
-      failed_when: false
+- name: Verify the app is serving its public API
+  ansible.builtin.uri:
+    url: http://127.0.0.1:18091/api/posts
+    status_code: 200
+  register: health
+  retries: 20
+  delay: 3
+  until: health.status == 200
 
-    - name: Build and start the container
-      ansible.builtin.command:
-        cmd: docker compose up -d --build --force-recreate
-        chdir: "{{ app_dir }}"
+- name: Check current user count
+  ansible.builtin.command:
+    cmd: >-
+      docker compose exec -T twatter
+      node -e "const{PrismaClient}=require('@prisma/client');(async()=>{const p=new PrismaClient();process.stdout.write(String(await p.user.count()))})().catch(()=>process.stdout.write('0'))"
+    chdir: /opt/twatter
+  register: user_count
+  changed_when: false
+  failed_when: false
 
-    - name: Verify the app is serving its public API
-      ansible.builtin.uri:
-        url: "http://127.0.0.1:{{ app_port }}{{ health_path }}"
-        status_code: 200
-      register: health
-      retries: 20
-      delay: 3
-      until: health.status == 200
+- name: Seed scenario users + content if the DB is empty
+  ansible.builtin.command:
+    cmd: docker compose exec -T twatter npx tsx prisma/seed.ts
+    chdir: /opt/twatter
+  when: (user_count.stdout | default('0') | trim) in ['', '0']
 
-    - name: Check current user count
-      when: seed_on_deploy | bool
-      ansible.builtin.command:
-        cmd: >-
-          docker compose exec -T {{ app_service }}
-          node -e "const{PrismaClient}=require('@prisma/client');(async()=>{const p=new PrismaClient();process.stdout.write(String(await p.user.count()))})().catch(()=>process.stdout.write('0'))"
-        chdir: "{{ app_dir }}"
-      register: user_count
-      changed_when: false
-      failed_when: false
+- name: Install boot-time update script
+  ansible.builtin.copy:
+    dest: /usr/local/bin/twatter-update.sh
+    mode: '0755'
+    owner: root
+    group: root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      cd /opt/twatter
+      git fetch --quiet origin main
+      git reset --hard origin/main
+      docker compose up -d --build
 
-    - name: Seed scenario users + content if the DB is empty
-      when:
-        - seed_on_deploy | bool
-        - (user_count.stdout | default('0') | trim) in ['', '0']
-      ansible.builtin.command:
-        cmd: docker compose exec -T {{ app_service }} npx tsx prisma/seed.ts
-        chdir: "{{ app_dir }}"
+- name: Install the update systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/twatter-update.service
+    mode: '0644'
+    owner: root
+    group: root
+    content: |
+      [Unit]
+      Description=Pull twatter updates from git and (re)start containers
+      After=network-online.target docker.service
+      Wants=network-online.target
+      Requires=docker.service
 
-    # ─── The lockdown: pin source to git on every boot ──────────────────
-    - name: Install boot-time update script
-      ansible.builtin.copy:
-        dest: "/usr/local/bin/{{ app_service }}-update.sh"
-        mode: '0755'
-        owner: root
-        group: root
-        content: |
-          #!/usr/bin/env bash
-          set -euo pipefail
-          cd {{ app_dir }}
-          git fetch --quiet origin main
-          LOCAL=$(git rev-parse HEAD)
-          REMOTE=$(git rev-parse origin/main)
-          if [ "$LOCAL" != "$REMOTE" ]; then
-            echo "updates found — resetting to origin/main and rebuilding"
-            git reset --hard origin/main
-            docker compose up -d --build
-          else
-            echo "no updates — resetting any local tampering and starting"
-            git reset --hard origin/main
-            docker compose up -d
-          fi
+      [Service]
+      Type=oneshot
+      WorkingDirectory=/opt/twatter
+      ExecStart=/usr/local/bin/twatter-update.sh
+      StandardOutput=journal
+      StandardError=journal
 
-    - name: Install the update systemd unit
-      ansible.builtin.copy:
-        dest: "/etc/systemd/system/{{ app_service }}-update.service"
-        mode: '0644'
-        owner: root
-        group: root
-        content: |
-          [Unit]
-          Description=Pull {{ app_service }} updates from git and (re)start containers
-          After=network-online.target docker.service
-          Wants=network-online.target
-          Requires=docker.service
+      [Install]
+      WantedBy=multi-user.target
 
-          [Service]
-          Type=oneshot
-          WorkingDirectory={{ app_dir }}
-          ExecStart=/usr/local/bin/{{ app_service }}-update.sh
-          StandardOutput=journal
-          StandardError=journal
-
-          [Install]
-          WantedBy=multi-user.target
-
-    - name: Enable the update unit on boot
-      ansible.builtin.systemd:
-        name: "{{ app_service }}-update.service"
-        enabled: yes
-        daemon_reload: yes
-
-    - name: Print access info
-      ansible.builtin.debug:
-        msg:
-          - "App:   http://{{ inventory_hostname }}:{{ app_port }}"
-          - "Default admin (HARDEN THIS): admin@twater.local / admin1234"
-          - "Lockdown: source is reset to origin/main and rebuilt on every boot."
-          - "Credentials live in the ./data volume and persist across rebuilds."
+- name: Enable the update unit on boot
+  ansible.builtin.systemd:
+    name: twatter-update.service
+    enabled: yes
+    daemon_reload: yes
