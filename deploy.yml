@@ -103,12 +103,7 @@
     - data
     - uploads
 
-- name: Check if .env already exists
-  ansible.builtin.stat:
-    path: /opt/twatter/.env
-  register: env_file
-
-- name: Generate .env with a random session secret
+- name: Generate .env (first deploy only — preserves the secret + creds on re-runs)
   ansible.builtin.copy:
     dest: /opt/twatter/.env
     owner: root
@@ -116,48 +111,26 @@
     mode: '0600'
     content: |
       NEXTAUTH_SECRET="{{ lookup('pipe', 'openssl rand -hex 32') }}"
-      NEXTAUTH_URL="http://{{ ansible_host | default(inventory_hostname) }}:18091"
-      APP_BIND="0.0.0.0"
+      NEXTAUTH_URL="https://{{ hostname }}.{{ domain }}"
+      APP_BIND="127.0.0.1"
       APP_PORT="18091"
-  when: not env_file.stat.exists
+  when: new_deploy
 
-- name: Bind to all interfaces on the range VLAN
-  ansible.builtin.lineinfile:
-    path: /opt/twatter/.env
-    regexp: '^APP_BIND='
-    line: 'APP_BIND="0.0.0.0"'
-
-- name: Pin the published port
-  ansible.builtin.lineinfile:
-    path: /opt/twatter/.env
-    regexp: '^APP_PORT='
-    line: 'APP_PORT="18091"'
-
-- name: Pin the public URL
-  ansible.builtin.lineinfile:
-    path: /opt/twatter/.env
-    regexp: '^NEXTAUTH_URL='
-    line: 'NEXTAUTH_URL="http://{{ ansible_host | default(inventory_hostname) }}:18091"'
-
-- name: Ensure .env perms are 600
-  ansible.builtin.file:
-    path: /opt/twatter/.env
-    owner: root
-    group: root
-    mode: '0600'
-
-- name: Allow the app port through ufw
-  ansible.builtin.command: ufw allow 18091/tcp
+- name: Allow HTTP/HTTPS through ufw
+  ansible.builtin.command: "ufw allow {{ item }}/tcp"
   register: ufw_result
   changed_when: "'added' in ufw_result.stdout or 'updated' in ufw_result.stdout"
   failed_when: false
+  loop:
+    - 80
+    - 443
 
 - name: Build and start the container
   ansible.builtin.command:
     cmd: docker compose up -d --build --force-recreate
     chdir: /opt/twatter
 
-- name: Verify the app is serving its public API
+- name: Verify the app backend is serving its public API
   ansible.builtin.uri:
     url: http://127.0.0.1:18091/api/posts
     status_code: 200
@@ -181,6 +154,88 @@
     cmd: docker compose exec -T twatter npx tsx prisma/seed.ts
     chdir: /opt/twatter
   when: (user_count.stdout | default('0') | trim) in ['', '0']
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+- name: Create TLS cert directory
+  ansible.builtin.file:
+    path: /etc/ssl/range
+    state: directory
+    mode: '0700'
+
+- name: Generate self-signed TLS cert (first deploy only)
+  ansible.builtin.shell:
+    cmd: >
+      openssl req -x509 -nodes -sha256 -days 825 -newkey rsa:2048
+      -keyout /etc/ssl/range/key.pem -out /etc/ssl/range/cert.pem
+      -subj "/C=UK/CN={{ hostname }}.{{ domain }}"
+      -addext "subjectAltName=DNS:{{ hostname }}.{{ domain }}"
+    executable: /bin/bash
+    creates: /etc/ssl/range/cert.pem
+  when: new_deploy
+
+- name: Configure nginx TLS reverse proxy
+  ansible.builtin.copy:
+    dest: /etc/nginx/sites-available/twatter.conf
+    content: |
+      server {
+          listen 80;
+          server_name {{ hostname }}.{{ domain }};
+          return 301 https://$host$request_uri;
+      }
+      server {
+          listen 443 ssl;
+          server_name {{ hostname }}.{{ domain }};
+
+          ssl_certificate     /etc/ssl/range/cert.pem;
+          ssl_certificate_key /etc/ssl/range/key.pem;
+
+          client_max_body_size 16m;
+
+          location / {
+              proxy_pass http://127.0.0.1:18091;
+              proxy_http_version 1.1;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection "upgrade";
+          }
+      }
+
+- name: Enable the twatter nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/twatter.conf
+    dest: /etc/nginx/sites-enabled/twatter.conf
+    state: link
+
+- name: Disable the default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Reload nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded
+    enabled: yes
+
+- name: Verify HTTPS is serving through nginx
+  ansible.builtin.uri:
+    url: https://127.0.0.1/api/posts
+    validate_certs: no
+    headers:
+      Host: "{{ hostname }}.{{ domain }}"
+    status_code: 200
+  register: https_health
+  retries: 5
+  delay: 2
+  until: https_health.status == 200
 
 - name: Install boot-time update script
   ansible.builtin.copy:
