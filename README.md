@@ -35,7 +35,7 @@ npm run db:seed            # optional: scenario users + posts
 npm run dev                # http://localhost:3000
 ```
 
-Default seeded admin: `admin@twater.local` / `admin1234` (change in production).
+Default seeded admin: `admin` (`admin@twater.local`) / `Cool2Pass` (change in production).
 
 ## API quick reference
 
