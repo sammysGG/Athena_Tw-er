@@ -52,3 +52,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# README is instructor/scenario notes — never ship to exercise targets
+README.md
