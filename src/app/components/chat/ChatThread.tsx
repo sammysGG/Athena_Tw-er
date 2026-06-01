@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Avatar from "@/app/components/feed/Avatar";
 import EmojiPicker from "@/app/components/feed/EmojiPicker";
+import GifPicker from "@/app/components/feed/GifPicker";
 import MediaPreview from "@/app/components/feed/MediaPreview";
 import RichText from "@/app/components/feed/RichText";
 import MentionAutocomplete, { type AutocompleteApi } from "@/app/components/feed/MentionAutocomplete";
@@ -233,6 +234,7 @@ export default function ChatThread({ me, other }: { me: Me; other: Other }) {
               });
             }}
           />
+          <GifPicker onPick={(url) => setUploadedUrl(url)} />
           <div className="relative flex-1">
             <input
               ref={inputRef}
