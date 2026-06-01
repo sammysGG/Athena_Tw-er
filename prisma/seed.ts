@@ -27,7 +27,7 @@ const SEED_USERS: SeedUser[] = [
     username: "admin",
     email: "admin@twater.local",
     displayName: "Tw@er Admin",
-    password: "Cool2Pass",
+    password: "Dodge.Edge.Portal!426",
     role: "admin",
     bio: "Platform admin account. God-mode by default.",
     gender: "prefer_not_to_say",
